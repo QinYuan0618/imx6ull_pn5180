@@ -48,7 +48,7 @@ static void phDriver_TimerIsrCallBack(void);
 static int  			timerfd = -1;
 static int  			epollfd = -1;
 static pthread_t 		timer_thread;
-static vloatile int 	timer_active = 0;
+static volatile int 	timer_active = 0;
 static volatile int 	thread_should_exit = 0;
 static pthread_mutex_t 	timer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -89,7 +89,7 @@ static void phDriver_DeinitGpioContext(gpio_context_t *ctx);
  * GPIO编号转换函数：将全局GPIO编号转换成 gpiochip编号 和 line编号
  * GPIO编号 = (控制器编号-1) * 32 + IO编号 
  */
-static phDriver_GpioToChipLine(uint32_t gpio_num, int *chip_num, int *line_num)
+static int phDriver_GpioToChipLine(uint32_t gpio_num, int *chip_num, int *line_num)
 {
 	/*
      * 基于引脚配置进行映射：
@@ -142,18 +142,6 @@ static gpio_context_t* phDriver_GetGpioContext(uint32_t dwPinNumber)
         return &gpio_busy;
     }
 
-    return NULL;
-}
-
-static gpio_context_t* phDriver_GetGpioContext(uint32_t dwPinNumber)
-{
-    if (dwPinNumber == PHDRIVER_PIN_RESET) {
-        return &gpio_reset;
-    } else if (dwPinNumber == PHDRIVER_PIN_IRQ) {
-        return &gpio_irq;
-    } else if (dwPinNumber == PHDRIVER_PIN_BUSY) {
-        return &gpio_busy;
-    }
     return NULL;
 }
 
@@ -591,7 +579,7 @@ uint8_t phDriver_PinRead(uint32_t dwPinNumber, phDriver_Pin_Func_t ePinFunc)
 		}
 
 		/* 检查有没有新事件发生 */
-		int fd = gpoid_line_request_get_fd(ctx->request);
+		int fd = gpiod_line_request_get_fd(ctx->request);
 		if(fd >= 0)
 		{
 			struct pollfd pfd = 
@@ -603,7 +591,7 @@ uint8_t phDriver_PinRead(uint32_t dwPinNumber, phDriver_Pin_Func_t ePinFunc)
 			int ret = poll(&pfd, 1, 0);
 			if(ret>0 && (pfd.revents & POLLIN))
 			{
-				ctx->interrupt = 1;
+				ctx->interrupt_pending = 1;
 				bPinStatus = 1;
 			}
 		}
